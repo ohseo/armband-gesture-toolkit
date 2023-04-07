@@ -76,7 +76,7 @@ def myo_data():
     #     myoHub = myo.Hub()
     #     myoListener = Listener()
     def get_myo_data():
-        myo.init(sdk_path='./myo-sdk-win-0.9.0/')
+        myo.init(sdk_path='./libs/myo-sdk-win-0.9.0/')
         global myoHub, myoListener
         myoHub = myo.Hub()
         myoListener = Listener()

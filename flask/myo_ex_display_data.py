@@ -70,7 +70,7 @@ class Listener(myo.DeviceListener):
 
 
 if __name__ == '__main__':
-  myo.init(sdk_path='./flask/myo-sdk-win-0.9.0/')
+  myo.init(sdk_path='./libs/myo-sdk-win-0.9.0/')
   hub = myo.Hub()
   listener = Listener()
   while hub.run(listener.on_event, 500):
