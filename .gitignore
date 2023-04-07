@@ -1,6 +1,7 @@
 CollectedData/*
 mp3/*
 TrainedModel/*
+libs/myo-sdk-win-0.9.0/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

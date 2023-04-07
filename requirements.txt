@@ -3,3 +3,4 @@ scikit-learn
 pygame
 playsound
 gTTS
+myo-sdk-win-0.9.0
