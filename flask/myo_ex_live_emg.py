@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('TkAgg')
 
 from matplotlib import pyplot as plt
 from collections import deque
@@ -37,7 +39,7 @@ class Plot(object):
     self.n = listener.n
     self.listener = listener
     self.fig = plt.figure()
-    self.axes = [self.fig.add_subplot('81' + str(i)) for i in range(1, 9)]
+    self.axes = [self.fig.add_subplot(810 + i) for i in range(1, 9)]
     [(ax.set_ylim([-100, 100])) for ax in self.axes]
     self.graphs = [ax.plot(np.arange(self.n), np.zeros(self.n))[0] for ax in self.axes]
     plt.ion()
