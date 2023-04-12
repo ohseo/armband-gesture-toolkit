@@ -1,19 +1,29 @@
 import os, sys
-import myo
 
+import myo
 from myo.utils import TimeInterval
+
+import pygame
+import pygame.display
+from pygame.locals import *
+
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use('TkAgg')
+matplotlib.use('module://pygame_matplotlib.backend_pygame')
+
+import numpy as np
+
+from collections import deque
+from threading import Lock, Thread
 
 from flask import Flask
 from flask import request, render_template, jsonify, redirect, url_for
 from flask import Response
-import json
 
 app = Flask(__name__)
 
 sys.path.append("./libs") #Project base-folder: Armband-Gesture-Toolkit
-from sensorUDP import imus_UDP
-import JinsSocket
-from NoseExperiment_clean import Experiment
 from pygameDisplay import showResult
 import methods_filter, methods_feature, methods_model
 
@@ -28,8 +38,19 @@ save_result = True
 save_folder = "TrainingData"
 save_trained_folder = "TrainedModel"
 save_plot_figure = True
-####
+######## DATA COLLECTION SETTINGS END ########
 
+px = 1/plt.rcParams['figure.dpi']
+
+######## FLASK ########
+app = Flask(__name__)
+app.config.update(
+    ENV = 'development',
+    DEBUG = True,
+    TESTING = True
+)
+
+######## FLASK END ########
 
 class Listener(myo.DeviceListener):
     def __init__(self):
@@ -62,30 +83,84 @@ class Listener(myo.DeviceListener):
         #return ''.join('[{}]'.format(p) for p in parts)
         
 
+class EMGListener(myo.DeviceListener):
+    ### Collects EMG data in a queue with *n* maximum number of elements
+    def __init__(self, n):
+        self.n = n
+        self.lock = Lock()
+        self.emg_data_queue = deque(maxlen=n)
+
+    def get_emg_data(self):
+        with self.lock:
+            return list(self.emg_data_queue)
+    
+    def on_connected(self, event):
+        event.device.stream_emg(True)
+
+    def on_emg(self, event):
+        with self.lock:
+            self.emg_data_queue.append((event.timestamp, event.emg))
+
+
+class EMGPlot(object):
+    def __init__(self, emg_listener):
+        self.n = emg_listener.n
+        self.emg_listener = emg_listener
+        ## figure setup
+        self.fig = plt.figure(figsize=(600*px, 400*px))
+        self.axes = [self.fig.add_subplot(810+i) for i in range(1, 9)]
+        [(ax.set_ylim([-100, 100])) for ax in self.axes]
+        self.graphs = [ax.plot(np.arange(self.n), np.zeros(self.n))[0] for ax in self.axes]
+        ## initial draw
+        plt.ion()
+        self.fig.canvas.draw()
+        
+    def update_plot(self):
+        law_emg_data = self.emg_listener.get_emg_data()
+        ## format emg data
+        emg_data = np.array([x[1] for x in law_emg_data]).T
+        for g, data in zip(self.graphs, emg_data):
+            if len(data) < self.n:
+                # Fill the left side with zeroes.
+                data = np.concatenate([np.zeros(self.n - len(data)), data])
+            g.set_ydata(data)
+        ## draw on pygame display
+        self.fig.canvas.draw()
+        self.screen.blit(self.fig, (0, 0))
+        pygame.display.update()
+        # plt.pause(1.0/30) < somehow breaks pygame display
+
+    def init_pygame(self):
+        self.screen = pygame.display.set_mode((600, 400))
+        self.screen.blit(self.fig, (0, 0))
+
+    def main(self):
+        self.init_pygame()
+        show = True
+        while show:
+            self.update_plot()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    show = False
+                    pygame.quit()
 
 #### MAIN ####
 @app.route('/')
 def hello_world():
     return 'Hello, World!'
 
-@app.route('/myo-init')
-def myo_data():
-    # def init_myo():
-    #     myo.init(sdk_path='./myo-sdk-win-0.9.0/')
-    #     global myoHub, myoListener
-    #     myoHub = myo.Hub()
-    #     myoListener = Listener()
-    def get_myo_data():
-        myo.init(sdk_path='./libs/myo-sdk-win-0.9.0/')
-        global myoHub, myoListener
-        myoHub = myo.Hub()
-        myoListener = Listener()
-        while myoHub.run(myoListener.on_event, 500):
-            pass
-        
-    # init_myo()
-    # get_myo_data()
-    return Response(get_myo_data(), mimetype='text/event-stream')
+@app.route('/plot-myo')
+def plot_myo():
+    pygame.init()
+
+    myo.init(sdk_path='./libs/myo-sdk-win-0.9.0/')
+    global myoHub, myoListener
+    myoHub = myo.Hub()
+    myoListener = EMGListener(512)
+    with myoHub.run_in_background(myoListener.on_event):
+        EMGPlot(myoListener).main()
+
+    return 'Pygame?'
 
 # call the 'run' method
 if __name__ == '__main__':
