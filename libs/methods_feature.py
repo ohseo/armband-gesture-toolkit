@@ -5,7 +5,7 @@ Created on Sun May  3 11:21:03 2020
 @author: JY
 """
 import inspect
-from collections import Iterable
+from collections.abc import Iterable
 
 import numpy as np
 import peakdetect
