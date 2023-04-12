@@ -6,6 +6,7 @@ from myo.utils import TimeInterval
 import pygame
 import pygame.display
 from pygame.locals import *
+from pygame._sdl2 import Window, Texture, Image, Renderer, get_drivers, messagebox
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -20,8 +21,6 @@ from threading import Lock, Thread
 from flask import Flask
 from flask import request, render_template, jsonify, redirect, url_for
 from flask import Response
-
-app = Flask(__name__)
 
 sys.path.append("./libs") #Project base-folder: Armband-Gesture-Toolkit
 from pygameDisplay import showResult
@@ -40,7 +39,14 @@ save_trained_folder = "TrainedModel"
 save_plot_figure = True
 ######## DATA COLLECTION SETTINGS END ########
 
+######## DISPLAY SIZING ########
 px = 1/plt.rcParams['figure.dpi']
+surface_width = 600
+surface_height = 400
+surface_background = (200,200,200,255)
+window_width = surface_width * 2
+window_height = surface_height
+######## DISPLAY SIZING END ########
 
 ######## FLASK ########
 app = Flask(__name__)
@@ -107,7 +113,7 @@ class EMGPlot(object):
         self.n = emg_listener.n
         self.emg_listener = emg_listener
         ## figure setup
-        self.fig = plt.figure(figsize=(600*px, 400*px))
+        self.fig = plt.figure(figsize=(surface_width*px, surface_height*px))
         self.axes = [self.fig.add_subplot(810+i) for i in range(1, 9)]
         [(ax.set_ylim([-100, 100])) for ax in self.axes]
         self.graphs = [ax.plot(np.arange(self.n), np.zeros(self.n))[0] for ax in self.axes]
@@ -126,13 +132,17 @@ class EMGPlot(object):
             g.set_ydata(data)
         ## draw on pygame display
         self.fig.canvas.draw()
-        self.screen.blit(self.fig, (0, 0))
+        self.screen.blit(self.fig, (surface_width, 0))
         pygame.display.update()
         # plt.pause(1.0/30) < somehow breaks pygame display
 
     def init_pygame(self):
-        self.screen = pygame.display.set_mode((600, 400))
-        self.screen.blit(self.fig, (0, 0))
+        self.screen = pygame.display.set_mode((window_width, window_height))
+        self.screen.blit(self.fig, (surface_width, 0))
+
+        self.surface = pygame.Surface((surface_width, surface_height), pygame.SRCALPHA)
+        self.surface.fill(surface_background)
+        self.screen.blit(self.surface, (0, 0))
 
     def main(self):
         self.init_pygame()
@@ -153,14 +163,18 @@ def hello_world():
 def plot_myo():
     pygame.init()
 
-    myo.init(sdk_path='./libs/myo-sdk-win-0.9.0/')
     global myoHub, myoListener
-    myoHub = myo.Hub()
-    myoListener = EMGListener(512)
+    try:
+        myo.init(sdk_path='./libs/myo-sdk-win-0.9.0/')
+        myoHub = myo.Hub()
+        myoListener = EMGListener(512)
+    except Exception as e:
+        return 'No Myo?'
+
     with myoHub.run_in_background(myoListener.on_event):
         EMGPlot(myoListener).main()
-
-    return 'Pygame?'
+    
+    return 'Pygame ended'
 
 # call the 'run' method
 if __name__ == '__main__':
