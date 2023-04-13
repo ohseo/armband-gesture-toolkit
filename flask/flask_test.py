@@ -14,29 +14,33 @@ matplotlib.use('TkAgg')
 matplotlib.use('module://pygame_matplotlib.backend_pygame')
 
 import numpy as np
+import pandas as pd
 
 from collections import deque
 from threading import Lock, Thread
+from datetime import datetime
 
 from flask import Flask
 from flask import request, render_template, jsonify, redirect, url_for
 from flask import Response
 
 sys.path.append("./libs") #Project base-folder: Armband-Gesture-Toolkit
+from MyoModule_new import Experiment
 from pygameDisplay import showResult
-import methods_filter, methods_feature, methods_model
 
 ######## DATA COLLECTION SETTINGS ########
 participant_name = "P0"
+participant_no = 0
+target_gestures = ['pinch', 'grip']
+number_of_force_levels = 2
 number_of_trials = 5
-target_gestures = ['none', 'pinch', 'press']
 
-enable_experiment = False
-isTraining = True
-save_result = True
 save_folder = "TrainingData"
-save_trained_folder = "TrainedModel"
-save_plot_figure = True
+
+time_before = 2
+time_recording = 2
+
+is_pygame_running = False
 ######## DATA COLLECTION SETTINGS END ########
 
 ######## DISPLAY SIZING ########
@@ -56,45 +60,18 @@ app.config.update(
     TESTING = True
 )
 
-######## FLASK END ########
-
-class Listener(myo.DeviceListener):
-    def __init__(self):
-        self.interval = TimeInterval(None, 0.1)
-        self.emg = None
-        self.orientation = None
-        self.acceleration = None
-        self.gyroscope = None
-
-    def on_connected(self, event):
-        print("Hello, {}!".format(event.device_name))
-        event.device.vibrate(myo.VibrationType.short)
-        event.device.stream_emg(True)
-
-    def on_emg(self, event):
-        # print(event.emg)
-        self.emg = event.emg
-        self.output()
-
-    def output(self):
-        if not self.interval.check_and_reset():
-            return
-
-        parts = []        
-        if self.emg:
-            for comp in self.emg:
-                parts.append(str(comp).ljust(5))
-        print('\r' + ''.join('[{}]'.format(p) for p in parts), end='')
-        sys.stdout.flush()
-        #return ''.join('[{}]'.format(p) for p in parts)
-        
+######## FLASK END ########        
 
 class EMGListener(myo.DeviceListener):
+    df_column = ['T','E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8']
+    trial_df = pd.DataFrame(columns=df_column)
+
     ### Collects EMG data in a queue with *n* maximum number of elements
     def __init__(self, n):
         self.n = n
         self.lock = Lock()
         self.emg_data_queue = deque(maxlen=n)
+        self.emg_data = []
 
     def get_emg_data(self):
         with self.lock:
@@ -105,7 +82,17 @@ class EMGListener(myo.DeviceListener):
 
     def on_emg(self, event):
         with self.lock:
+            self.emg_data = [event.timestamp] + event.emg
+            self.add_emg()
             self.emg_data_queue.append((event.timestamp, event.emg))
+
+    def add_emg(self):
+        self.trial_df.loc[len(self.trial_df), self.df_column] = self.emg_data
+
+    def save_emg(self):
+        self.trial_df.to_csv("CollectedData/test.csv")
+
+
 
 
 class EMGPlot(object):
@@ -144,6 +131,16 @@ class EMGPlot(object):
         self.surface.fill(surface_background)
         self.screen.blit(self.surface, (0, 0))
 
+        myFont = pygame.font.SysFont("notosansdisplay", 30, True, False)
+        textColor = (0,0,0, 120)
+        text = myFont.render("Testing", True, textColor)
+
+        self.screen.blit(text, [200,300])
+
+        type_forText = {1: "Test1",
+                        2: "Text2"}
+        showResult(pygame, self.surface, type_forText)
+
     def main(self):
         self.init_pygame()
         show = True
@@ -154,10 +151,69 @@ class EMGPlot(object):
                     show = False
                     pygame.quit()
 
+                elif event.type == pygame.KEYUP:
+                    if event.key == pygame.K_ESCAPE:
+                        show = False
+                        pygame.quit()
+                    elif event.key == pygame.K_RIGHT:
+                        show = True
+                        self.emg_listener.save_emg()
+                        ## next trial
+                        
+
+def run_pygame():
+
+    pygame.init()
+
+    global myoHub, myoListener
+    try:
+        myo.init(sdk_path='./libs/myo-sdk-win-0.9.0/')
+        myoHub = myo.Hub()
+        myoListener = EMGListener(512)
+    except Exception as e:
+        return 'No Myo?'
+
+    with myoHub.run_in_background(myoListener.on_event):
+        EMGPlot(myoListener).main()
+    # save_name_str = save_folder +"/"+ datetime.now().strftime('%Y-%m-%d %H_%M_%S')+"_"+participant_name
+
+    #### Initialize Pygame ####
+
+    #### Data Collection ####
+    # exp = Experiment(pa_name = participant_name,
+    #                  pa_no = participant_no,
+    #                  gestures = target_gestures,
+    #                  level_num = number_of_force_levels,
+    #                  trial_num = number_of_trials)
+    # exp.setDataCollection(display_size = [window_width, window_height],
+    #                       time_before = time_before,
+    #                       time_recording = time_recording)
+
+    #### Pygame Event Handling ####
+
+    #### Close Things Down ####
+
+    #### Save Result as a File ####
+
 #### MAIN ####
-@app.route('/')
+@app.route('/', methods = ['GET', 'POST'])
 def hello_world():
-    return 'Hello, World!'
+
+    if request.method == 'POST':
+        participant_name = request.form['input_name'].upper()
+        ## participant_no
+        target_gestures = [x.strip() for x in request.form["input_gesture_set"].split(',')]
+        number_of_force_levels = int(request.form['input_number_of_force_level'])
+        number_of_trials = int(request.form['input_number_of_gesture'])
+        
+        time_before = float(request.form['time-before-length'])
+        time_recording = float(request.form['time-window-length'])
+
+        if request.form['action'] == 'startGathering':
+            if not is_pygame_running:
+                run_pygame()
+
+    return render_template('collecting_form.html') #, name=participant_name)
 
 @app.route('/plot-myo')
 def plot_myo():
@@ -176,7 +232,21 @@ def plot_myo():
     
     return 'Pygame ended'
 
+@app.route('/_initdata', methods=['GET'])
+def info_to_html():
+    print("<<stuff>>\nname:",participant_name,
+          "\ntarget_gestures:",target_gestures,
+          "\nnumber_of_trials:",number_of_trials)
+    return jsonify(participant_name=participant_name,
+                   level_numbers = number_of_force_levels,
+                   trial_numbers=number_of_trials,
+                   target_gestures=",".join(target_gestures),
+                   time_before=time_before,
+                   time_recording=time_recording)
+
 # call the 'run' method
 if __name__ == '__main__':
     url = "http://127.0.0.1:5000"    
     app.run()
+
+
