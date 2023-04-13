@@ -25,8 +25,6 @@ from flask import request, render_template, jsonify, redirect, url_for
 from flask import Response
 
 sys.path.append("./libs") #Project base-folder: Armband-Gesture-Toolkit
-from MyoModule_new import Experiment
-from pygameDisplay import showResult
 
 ######## DATA COLLECTION SETTINGS ########
 participant_name = "P0"
@@ -136,10 +134,6 @@ class EMGPlot(object):
         text = myFont.render("Testing", True, textColor)
 
         self.screen.blit(text, [200,300])
-
-        type_forText = {1: "Test1",
-                        2: "Text2"}
-        showResult(pygame, self.surface, type_forText)
 
     def main(self):
         self.init_pygame()
