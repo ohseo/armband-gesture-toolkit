@@ -36,10 +36,10 @@ from flask import Response
 
 
 # import custom
-sys.path.append("../libs")
+sys.path.append("./libs")
 from sensorUDP import imus_UDP
 import JinsSocket
-from NoseExperiment_clean import Experiment 
+# from NoseExperiment_clean import Experiment 
 from pygameDisplay import showResult  
 import methods_filter, methods_feature, methods_model
 

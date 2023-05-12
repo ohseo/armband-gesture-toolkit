@@ -147,8 +147,6 @@ class EMGPlot(object):
 def run_pygame():
     #### Initialize Pygame ####
     is_pygame_running = True
-    initial_time = time.time() * 1000000
-    print(initial_time)
     start_time_s = 0.0
     start_time_ms = 0.0
     is_saving = False

@@ -40,11 +40,12 @@ class Listener(libmyo.DeviceListener):
         parts = []
         parts.append(self.type)
         if self.emg:
-            for comp in self.emg:
-                parts.append(str(comp).ljust(5))
-        if self.timestamp:
-            parts.append(str(self.timestamp))
-        print('\r' + ''.join('[{}]'.format(p) for p in parts), end='')
+            print([self.timestamp] + self.emg)
+        #     for comp in self.emg:
+        #         parts.append(str(comp).ljust(5))
+        # if self.timestamp:
+        #     parts.append(str(self.timestamp))
+        # print('\r' + ''.join('[{}]'.format(p) for p in parts), end='')
         sys.stdout.flush()
 
 if __name__ == '__main__':

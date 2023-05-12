@@ -33,7 +33,7 @@ target_gestures = ['pinch', 'grip']
 number_of_force_levels = 2
 number_of_trials = 5
 
-save_folder = "TrainingData"
+save_folder = "CollectedData"
 
 time_before = 2
 time_recording = 2
@@ -63,6 +63,7 @@ app.config.update(
 class EMGListener(myo.DeviceListener):
     df_column = ['T','E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8']
     trial_df = pd.DataFrame(columns=df_column)
+    is_saving = False
 
     ### Collects EMG data in a queue with *n* maximum number of elements
     def __init__(self, n):
@@ -80,8 +81,9 @@ class EMGListener(myo.DeviceListener):
 
     def on_emg(self, event):
         with self.lock:
-            self.emg_data = [event.timestamp] + event.emg
-            self.add_emg()
+            if self.is_saving:
+                self.emg_data = [event.timestamp] + event.emg
+                self.add_emg()
             self.emg_data_queue.append((event.timestamp, event.emg))
 
     def add_emg(self):
@@ -89,9 +91,6 @@ class EMGListener(myo.DeviceListener):
 
     def save_emg(self):
         self.trial_df.to_csv("CollectedData/test.csv")
-
-
-
 
 class EMGPlot(object):
     def __init__(self, emg_listener):
@@ -153,10 +152,9 @@ class EMGPlot(object):
                         show = True
                         self.emg_listener.save_emg()
                         ## next trial
-                        
 
 def run_pygame():
-
+    is_pygame_running = True
     pygame.init()
 
     global myoHub, myoListener
@@ -188,6 +186,7 @@ def run_pygame():
     #### Close Things Down ####
 
     #### Save Result as a File ####
+    is_pygame_running = False
 
 #### MAIN ####
 @app.route('/', methods = ['GET', 'POST'])
